@@ -1,7 +1,9 @@
 package kjd.reactnative.bluetooth;
 
+import android.bluetooth.BluetoothA2dp;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothProfile;
 import android.bluetooth.BluetoothServerSocket;
 import android.bluetooth.BluetoothSocket;
 import android.util.Log;
@@ -66,6 +68,20 @@ public class RNBluetoothClassicService {
      */
     private BluetoothDevice mDevice;
 
+    BluetoothA2dp bluetoothHeadset;
+    private BluetoothProfile.ServiceListener profileListener = new BluetoothProfile.ServiceListener() {
+        public void onServiceConnected(int profile, BluetoothProfile proxy) {
+            if (profile == BluetoothProfile.A2DP) {
+                bluetoothHeadset = (BluetoothA2dp) proxy;
+            }
+        }
+        public void onServiceDisconnected(int profile) {
+            if (profile == BluetoothProfile.A2DP) {
+                bluetoothHeadset = null;
+            }
+        }
+    };
+
     /**
      * Constructor. Prepares a new RNBluetoothClassicService session.
      *
@@ -96,6 +112,8 @@ public class RNBluetoothClassicService {
         mConnectThread = new ConnectThread(device);
         mConnectThread.start();
 
+        mAdapter.getProfileProxy(context, profileListener, BluetoothProfile.A2DP);
+        mAdapter.closeProfileProxy(BluetoothProfile.A2DP, bluetoothHeadset);
         // Unsure about whether to set device while just connecting
         setState(DeviceState.CONNECTING, null);
     }
