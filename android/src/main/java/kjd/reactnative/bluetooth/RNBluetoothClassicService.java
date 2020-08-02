@@ -11,6 +11,7 @@ import android.util.Log;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -68,16 +69,16 @@ public class RNBluetoothClassicService {
      */
     private BluetoothDevice mDevice;
 
-    BluetoothA2dp bluetoothHeadset;
+    BluetoothA2dp mA2dp;
     private BluetoothProfile.ServiceListener profileListener = new BluetoothProfile.ServiceListener() {
         public void onServiceConnected(int profile, BluetoothProfile proxy) {
             if (profile == BluetoothProfile.A2DP) {
-                bluetoothHeadset = (BluetoothA2dp) proxy;
+                mA2dp = (BluetoothA2dp) proxy;
             }
         }
         public void onServiceDisconnected(int profile) {
             if (profile == BluetoothProfile.A2DP) {
-                bluetoothHeadset = null;
+                mA2dp = null;
             }
         }
     };
@@ -112,8 +113,22 @@ public class RNBluetoothClassicService {
         mConnectThread = new ConnectThread(device);
         mConnectThread.start();
 
-        mAdapter.getProfileProxy(context, profileListener, BluetoothProfile.A2DP);
-        mAdapter.closeProfileProxy(BluetoothProfile.A2DP, bluetoothHeadset);
+        try {
+            Method boned = device.getClass().getMethod("createBond");
+            boned.invoke(device);
+        }catch (Exception e){
+            e.printStackTrace();
+        }
+
+        mAdapter.getProfileProxy(((RNBluetoothClassicModule)listener).getReactContext(), profileListener, BluetoothProfile.A2DP);
+        if (mA2dp != null) {
+            try {
+                Method connectMethod = BluetoothA2dp.class.getMethod("connect", BluetoothDevice.class);
+                connectMethod.invoke(mA2dp, device);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
         // Unsure about whether to set device while just connecting
         setState(DeviceState.CONNECTING, null);
     }
@@ -194,6 +209,18 @@ public class RNBluetoothClassicService {
 
         cleanConnectThreads();
         cancelConnectedThread();
+
+        if (mA2dp != null) {
+            try {
+                if (mConnectThread != null) {
+                    Method connectMethod = BluetoothA2dp.class.getMethod("disconnect", BluetoothDevice.class);
+                    connectMethod.invoke(mA2dp, mConnectThread.getDevice());
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            mAdapter.closeProfileProxy(BluetoothProfile.A2DP, mA2dp);
+        }
 
         setState(DeviceState.DISCONNECTED, null);
     }
@@ -308,6 +335,10 @@ public class RNBluetoothClassicService {
                 listener.onConnectionFailed(device, e);
             }
             mmSocket = tmp;
+        }
+
+        public BluetoothDevice getDevice() {
+            return mmDevice;
         }
 
         public void run() {
