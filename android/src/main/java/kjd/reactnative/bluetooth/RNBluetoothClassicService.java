@@ -207,9 +207,6 @@ public class RNBluetoothClassicService {
     synchronized void stop() {
         if (D) Log.d(TAG, "Stopping RNBluetoothClassic service");
 
-        cleanConnectThreads();
-        cancelConnectedThread();
-
         if (mA2dp != null) {
             try {
                 if (mConnectThread != null) {
@@ -221,6 +218,9 @@ public class RNBluetoothClassicService {
             }
             mAdapter.closeProfileProxy(BluetoothProfile.A2DP, mA2dp);
         }
+
+        cleanConnectThreads();
+        cancelConnectedThread();
 
         setState(DeviceState.DISCONNECTED, null);
     }
